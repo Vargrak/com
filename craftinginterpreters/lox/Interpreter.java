@@ -82,6 +82,14 @@ class Interpreter implements Expr.Visitor<Object>
                 {
                     return (String)left + (String)right;
                 }
+                if (left instanceof String && right instanceof Double)
+                {
+                    return (String)left + (String)right.toString();
+                }
+                if (left instanceof Double && right instanceof String)
+                {
+                    return (String)left.toString() + (String)right;
+                }
 
 
                 throw new RuntimeError(expr.operator, "Operands must be two numbers or two strings.");
@@ -89,8 +97,20 @@ class Interpreter implements Expr.Visitor<Object>
                 checkNumberOperands(expr.operator, left, right);
                 return (double)left / (double)right;
             case STAR:
-                checkNumberOperands(expr.operator, left, right);
-                return (double)left * (double)right;
+                if (left instanceof Double && right instanceof Double)
+                {
+                    return (double)left * (double)right;
+                }
+                if (left instanceof String && right instanceof Double)
+                {
+                    return multiplystring(right, left);
+                }
+                if (left instanceof Double && right instanceof String)
+                {
+                    return multiplystring(left, right);
+                }
+
+                throw new RuntimeError(expr.operator, "* Operator use cases: 2 number operands or 1 number and 1 string operand");
         }
 
         return null;
@@ -143,5 +163,21 @@ class Interpreter implements Expr.Visitor<Object>
         }
 
         return object.toString();
+    }
+
+    private String multiplystring(Object number, Object message)
+    {
+        StringBuilder string = new StringBuilder();
+        Double i = (double)number;
+        if (i >= 1)
+        {
+            while (i != 0)
+            {
+                string.append(message);
+                i--;
+            }
+        }
+
+        return string.toString();
     }
 }
