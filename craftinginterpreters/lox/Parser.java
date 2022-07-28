@@ -1,6 +1,7 @@
 package com.craftinginterpreters.lox;
 
 import java.beans.Expression;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.craftinginterpreters.lox.TokenType.*;
@@ -17,11 +18,17 @@ class Parser
         this.tokens = tokens;
     }
 
-    Expr parse()
+    List<Stmt> parse()
     {
         try
         {
-            return expression();
+            List<Stmt> statements = new ArrayList<>();
+            while (!isAtEnd())
+            {
+                statements.add(declaration());
+            }
+
+            return statements;
         }
         catch (ParseError error)
         {
@@ -32,6 +39,56 @@ class Parser
     private Expr expression()
     {
         return equality();
+    }
+
+    private Stmt statement()
+    {
+        if(match(PRINT)) return printStatment();
+
+        return expressionStatement();
+    }
+
+    private Stmt declaration()
+    {
+        try 
+        {
+            if (match(VAR)) return varDeclaration();    
+
+            return statement();
+        } 
+        catch (ParseError error) 
+        {
+            synchronize();
+            return null;
+        }
+    }
+
+    private Stmt printStatment()
+    {
+        Expr value = expression();
+        consume(SEMICOLON, "Expected ';' after value");
+        return new Stmt.Print(value);
+    }
+
+    private Stmt expressionStatement()
+    {
+        Expr expr = expression();
+        consume(SEMICOLON, "Expected ';' after value");
+        return new Stmt.Expression(expr);
+    }
+
+    private Stmt varDeclaration()
+    {
+        Token name = consume(IDENTIFIER, "Expected variable name");
+
+        Expr initializer = null;
+        if (match(EQUAL))
+        { 
+            initializer = expression();
+        }
+
+        consume(SEMICOLON, "Expected ';' after variable declaration");
+        return new Stmt.Var(name, initializer);
     }
 
     private Expr equality()
@@ -113,6 +170,11 @@ class Parser
             return new Expr.Literal(previous().literal);
         }
 
+        if (match(IDENTIFIER))
+        {
+            return new Expr.Variable(previous());
+        }
+
         if (match(LEFT_PAREN))
         {
             Expr expr = expression();
@@ -139,7 +201,7 @@ class Parser
     private Token consume(TokenType type, String message)
     {
         if (check(type)) return advance();
-        throw error(peak(), message);
+        throw error(peek(), message);
     }
 
     private boolean check(TokenType type)
@@ -172,7 +234,7 @@ class Parser
     private ParseError error(Token token, String message)
     {
         Lox.error(token, message);
-        return new ParserError();
+        return new ParseError();
     }
 
     private void synchronize()

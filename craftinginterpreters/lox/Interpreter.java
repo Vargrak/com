@@ -1,20 +1,59 @@
 package com.craftinginterpreters.lox;
 
+import java.util.List;
 import javax.management.RuntimeErrorException;
 
-class Interpreter implements Expr.Visitor<Object>
+class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void>
 {
-    void interpret(Expr expression)
+    private Environment environment = new Environment();
+
+    void interpret(List<Stmt> statements)
     {
         try
         {
-            Object value = evaluate(expression);
-            System.out.println(stringify(value));
+            for (Stmt statement : statements)
+            {
+                execute(statement);
+            }
         }
         catch (RuntimeError error)
         {
             Lox.runtimeError(error);
         }
+    }
+
+    @Override
+    public Void visitExpressionStmt(Stmt.Expression stmt)
+    {
+        evaluate(stmt.expression);
+        return null;
+    }
+
+    @Override
+    public Void visitPrintStmt(Stmt.Print stmt)
+    {
+        Object value = evaluate(stmt.expression);
+        System.out.println(stringify(value));
+        return null;
+    }
+
+    @Override
+    public Void visitVarStmt(Stmt.Var stmt)
+    {
+        Object value = null;
+        if (stmt.initializer != null)
+        {
+            value = evaluate(stmt.initializer);
+        }
+
+        environment.define(stmt.name.lexeme, value);
+        return null;
+    }
+
+    @Override 
+    public Void visitVariableExpr(Expr.Variable expr)
+    {
+        return environment.get(expr.name);
     }
 
     @Override
@@ -42,10 +81,9 @@ class Interpreter implements Expr.Visitor<Object>
                 checkNumberOperand(expr.operator, right);
                 return -(double)right;
         }
-
+        
         return null;
     }
-
     @Override
     public Object visitBinaryExpr(Expr.Binary expr)
     {
@@ -84,17 +122,19 @@ class Interpreter implements Expr.Visitor<Object>
                 }
                 if (left instanceof String && right instanceof Double)
                 {
-                    return (String)left + (String)right.toString();
+                    return (String)left + (String)stringify(right);
                 }
                 if (left instanceof Double && right instanceof String)
                 {
-                    return (String)left.toString() + (String)right;
+                    return (String)stringify(left) + (String)right;
                 }
 
 
                 throw new RuntimeError(expr.operator, "Operands must be two numbers or two strings.");
             case SLASH:
                 checkNumberOperands(expr.operator, left, right);
+                //check for div zero
+                if ((double)right == 0) throw new RuntimeError(expr.operator, "Cannot divide by zero.");
                 return (double)left / (double)right;
             case STAR:
                 if (left instanceof Double && right instanceof Double)
@@ -134,6 +174,11 @@ class Interpreter implements Expr.Visitor<Object>
     private Object evaluate(Expr expr)
     {
         return expr.accept(this);
+    }
+
+    private void execute(Stmt stmt)
+    {
+        stmt.accept(this);
     }
 
     private void checkNumberOperand(Token operator, Object operand)
