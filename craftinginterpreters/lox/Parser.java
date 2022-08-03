@@ -54,6 +54,7 @@ class Parser
 
     private Stmt statement()
     {
+        if(match(RETURN)) return returnStatement();
         if(match(FOR)) return forStatement();
         if(match(IF)) return ifStatement();
         if(match(PRINT)) return printStatement();
@@ -95,6 +96,12 @@ class Parser
         consume(RIGHT_PAREN, "Expected ')' after for clauses.");
         
         Stmt body = statement();
+
+        if (increment != null)
+        {
+            body = new Stmt.Block(Arrays.asList(body, new Stmt.Expression(increment)));
+        }
+
         if (condition == null) condition = new Expr.Literal(true);
         body = new Stmt.While(condition, body);
 
@@ -128,6 +135,19 @@ class Parser
         return new Stmt.Print(value);
     }
 
+    private Stmt returnStatement()
+    {
+        Token keyword = previous();
+        Expr value = null;
+        if (!check(SEMICOLON))
+        {
+            value = expression();
+        }
+
+        consume(SEMICOLON, "Expected ';' after return value");
+        return new Stmt.Return(keyword, value);
+    }
+
     private Stmt expressionStatement()
     {
         Expr expr = expression();
@@ -146,13 +166,17 @@ class Parser
             {
                 if (parameters.size() >= 255)
                 {
-                    error(peek(), "Can't have more than 255 parameters.")
+                    error(peek(), "Can't have more than 255 parameters.");
                 }
 
                 parameters.add(consume(IDENTIFIER, "Expected parameter name."));
             } while (match(COMMA));
         }
         consume(RIGHT_PAREN, "Expected ')' after parameters.");
+
+        consume(LEFT_BRACE, "Expected '{' before " + kind + " body.");
+        List<Stmt> body = block();
+        return new Stmt.Function(name, parameters, body);
     }
 
     private List<Stmt> block()
